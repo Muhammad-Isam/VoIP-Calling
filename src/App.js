@@ -18,19 +18,29 @@ const App = () => {
         setStream(userStream);
         streamRef.current = userStream;
       } catch (error) {
-        console.error("Error accessing microphone:", error);
+        console.error("Microphone access error:", error);
+
+        if (error.name === "NotAllowedError") {
+          alert("Microphone access is blocked. Please allow it in your browser settings.");
+        } else if (error.name === "NotFoundError") {
+          alert("No microphone detected. Connect a mic and try again.");
+        } else {
+          alert("Microphone error. Check browser permissions.");
+        }
       }
     };
+
     getMedia();
   }, []);
 
-  // Establish WebSocket connection and register user (runs only once)
+  // Establish WebSocket connection
   useEffect(() => {
     const userId = Math.random().toString(36).substr(2, 6);
     setMyId(userId);
 
-    // Make sure to use the correct WebSocket protocol (ws:// or wss://)
-    const ws = new WebSocket("ws://localhost:5000");
+    // Use 'wss://' for secure WebSockets in production
+    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`${wsProtocol}://vo-ip-calling.vercel.app`);
     socketRef.current = ws;
 
     ws.onopen = () => {
@@ -40,53 +50,18 @@ const App = () => {
 
     ws.onmessage = (message) => {
       const data = JSON.parse(message.data);
-      console.log("Received message:", data);
+      console.log("Received:", data);
 
       switch (data.type) {
         case "registrationConfirmed":
-          console.log("Registration confirmed:", data.userId);
+          console.log("Registered as:", data.userId);
+          break;
+        case "activeUsers":
+          console.log("Active users:", data.users);
           break;
         case "incomingCall":
           setCallStatus(`Incoming call from ${data.from}`);
-          if (!streamRef.current) {
-            console.error("Local stream not available");
-            return;
-          }
-
-          // Create a receiver peer
-          const incomingPeer = new SimplePeer({
-            initiator: false,
-            trickle: false,
-            stream: streamRef.current,
-            config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] },
-          });
-
-          incomingPeer.signal(data.signal);
-
-          incomingPeer.on("signal", (signalData) => {
-            const sendAnswer = () => {
-              ws.send(JSON.stringify({
-                type: "answer",
-                signal: signalData,
-                target: data.from,
-              }));
-            };
-
-            if (ws.readyState === WebSocket.OPEN) {
-              sendAnswer();
-            } else {
-              ws.addEventListener("open", sendAnswer, { once: true });
-            }
-          });
-
-          incomingPeer.on("stream", (remoteStream) => {
-            const audio = new Audio();
-            audio.srcObject = remoteStream;
-            audio.play().catch((e) => console.error("Audio play failed:", e));
-            setCallStatus("Call connected");
-          });
-
-          peerRef.current = incomingPeer;
+          handleIncomingCall(data);
           break;
         case "callAccepted":
           if (peerRef.current) {
@@ -112,16 +87,63 @@ const App = () => {
     };
   }, []);
 
-  // Initiate a call when the "Call" button is clicked
+  // Handle incoming calls
+  const handleIncomingCall = (data) => {
+    if (!streamRef.current) {
+      console.error("No local stream available. Trying to re-acquire...");
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(userStream => {
+          setStream(userStream);
+          streamRef.current = userStream;
+          acceptCall(data);
+        })
+        .catch(err => {
+          console.error("Failed to re-acquire microphone:", err);
+          alert("Microphone access required to answer calls.");
+        });
+    } else {
+      acceptCall(data);
+    }
+  };
+
+  const acceptCall = (data) => {
+    const incomingPeer = new SimplePeer({
+      initiator: false,
+      trickle: false,
+      stream: streamRef.current,
+      config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] },
+    });
+
+    incomingPeer.signal(data.signal);
+
+    incomingPeer.on("signal", (signalData) => {
+      socketRef.current.send(JSON.stringify({
+        type: "answer",
+        signal: signalData,
+        target: data.from,
+      }));
+    });
+
+    incomingPeer.on("stream", (remoteStream) => {
+      const audio = new Audio();
+      audio.srcObject = remoteStream;
+      audio.play().catch((e) => console.error("Audio play failed:", e));
+      setCallStatus("Call connected");
+    });
+
+    peerRef.current = incomingPeer;
+  };
+
+  // Start a call
   const startCall = () => {
     if (!streamRef.current) {
-      console.error("Local stream not available");
+      console.error("Microphone not accessible. Please allow permissions.");
+      alert("Microphone access is required to make calls.");
       return;
     }
 
     setCallStatus("Calling...");
 
-    // Create an initiator peer
     const newPeer = new SimplePeer({
       initiator: true,
       trickle: false,
@@ -130,20 +152,12 @@ const App = () => {
     });
 
     newPeer.on("signal", (data) => {
-      const sendCall = () => {
-        socketRef.current.send(JSON.stringify({
-          type: "call",
-          signal: data,
-          target: targetId,
-          userId: myId,
-        }));
-      };
-
-      if (socketRef.current.readyState === WebSocket.OPEN) {
-        sendCall();
-      } else {
-        socketRef.current.addEventListener("open", sendCall, { once: true });
-      }
+      socketRef.current.send(JSON.stringify({
+        type: "call",
+        signal: data,
+        target: targetId,
+        userId: myId,
+      }));
     });
 
     newPeer.on("stream", (remoteStream) => {

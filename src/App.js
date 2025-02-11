@@ -30,7 +30,7 @@ const App = () => {
     setMyId(userId);
 
     // Make sure to use the correct WebSocket protocol (ws:// or wss://)
-    const ws = new WebSocket("wss://3dc2-175-107-212-104.ngrok-free.app");
+    const ws = new WebSocket("ws://localhost:5000");
     socketRef.current = ws;
 
     ws.onopen = () => {

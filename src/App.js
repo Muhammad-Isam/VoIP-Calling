@@ -39,8 +39,8 @@ const App = () => {
     setMyId(userId);
 
     // Use 'wss://' for secure WebSockets in production
-    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${wsProtocol}://vo-ip-calling.vercel.app`);
+    // const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(`wss://vo-ip-calling.vercel.app`);
     socketRef.current = ws;
 
     ws.onopen = () => {

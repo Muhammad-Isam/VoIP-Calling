@@ -84,9 +84,14 @@ const App = () => {
           break;
 
         case "incomingCall":
-          setCallStatus(`Incoming call from ${data.from}`);
-          // Instead of immediately answering, store the call data:
-          setIncomingCallData(data);
+          // If a peer already exists, process additional ICE candidate signals
+          if (peerRef.current) {
+            console.log("Processing additional ICE candidate from incomingCall");
+            peerRef.current.signal(data.signal);
+          } else {
+            setCallStatus(`Incoming call from ${data.from}`);
+            setIncomingCallData(data);
+          }
           break;
 
         case "callAccepted":
@@ -97,7 +102,8 @@ const App = () => {
           break;
 
         case "iceCandidate":
-          // Handle incoming ICE candidates from the remote peer
+          // Although our server forwards ICE candidates with type "incomingCall",
+          // if you ever change that to a separate type, you can handle it here:
           if (peerRef.current) {
             console.log("Received ICE candidate:", data.candidate);
             peerRef.current.signal(data.candidate);
@@ -142,7 +148,7 @@ const App = () => {
       },
     });
 
-    // Process the initial signal from the caller
+    // Process the initial signal from the caller (SDP offer or candidate)
     incomingPeer.signal(data.signal);
 
     incomingPeer.on("signal", (signal) => {

@@ -38,6 +38,7 @@ const App = () => {
         }
       }
     };
+
     getMedia();
   }, []);
 
@@ -52,7 +53,6 @@ const App = () => {
     ws.onopen = () => {
       console.log("WebSocket connected");
       if (userId) {
-        // Include userId in registration message
         ws.send(JSON.stringify({ type: "register", userId }));
       } else {
         console.error("User ID is missing before registering");
@@ -126,6 +126,7 @@ const App = () => {
     }
   };
 
+  // Accept an incoming call and send an "answer" message including our userId
   const acceptCall = (data) => {
     const incomingPeer = new SimplePeer({
       initiator: false,
@@ -142,10 +143,13 @@ const App = () => {
 
     incomingPeer.on("signal", (signal) => {
       if (socketRef.current) {
-        // Send the answer message including userId
-        socketRef.current.send(
-          JSON.stringify({ type: "answer", signal, target: data.from, userId: myId })
-        );
+        // Send an "answer" message with our userId to the caller
+        socketRef.current.send(JSON.stringify({
+          type: "answer",
+          signal,
+          target: data.from,
+          userId: myId,
+        }));
       } else {
         console.error("WebSocket not connected.");
       }
@@ -153,7 +157,7 @@ const App = () => {
 
     incomingPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
-      // You can attach remoteStream to an audio element if needed
+      // Here you can attach the remoteStream to an audio element if needed
     });
 
     // WebRTC Debugging Logs
@@ -164,7 +168,7 @@ const App = () => {
     peerRef.current = incomingPeer;
   };
 
-  // Function to start a call
+  // Start a call: send a "call" message including our userId
   const startCall = () => {
     if (!targetId) {
       alert("Please enter a user ID to call.");
@@ -186,10 +190,13 @@ const App = () => {
 
     newPeer.on("signal", (signal) => {
       if (socketRef.current) {
-        // Send callUser message including userId
-        socketRef.current.send(
-          JSON.stringify({ type: "callUser", signal, target: targetId, userId: myId })
-        );
+        // Send a "call" message with our userId
+        socketRef.current.send(JSON.stringify({
+          type: "call",
+          signal,
+          target: targetId,
+          userId: myId,
+        }));
       } else {
         console.error("WebSocket not connected.");
       }
@@ -197,7 +204,7 @@ const App = () => {
 
     newPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
-      // Attach remoteStream to an audio element if needed
+      // Here you can attach the remoteStream to an audio element if needed
     });
 
     // WebRTC Debugging Logs

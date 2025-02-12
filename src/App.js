@@ -14,7 +14,6 @@ const App = () => {
   useEffect(() => {
     const getMedia = async () => {
       try {
-        // Update your getUserMedia call:
         const userStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
@@ -25,7 +24,8 @@ const App = () => {
             sampleSize: 16,
             latency: 0
           }
-        }); setStream(userStream);
+        });
+        setStream(userStream);
         streamRef.current = userStream;
       } catch (error) {
         console.error("Microphone access error:", error);
@@ -48,8 +48,6 @@ const App = () => {
     const userId = Math.random().toString(36).substr(2, 6);
     setMyId(userId);
 
-    // Use 'wss://' for secure WebSockets in production
-    // const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`wss://e752-108-181-186-240.ngrok-free.app`);
     socketRef.current = ws;
 
@@ -65,9 +63,6 @@ const App = () => {
       switch (data.type) {
         case "registrationConfirmed":
           console.log("Registered as:", data.userId);
-          break;
-        case "activeUsers":
-          console.log("Active users:", data.users);
           break;
         case "incomingCall":
           setCallStatus(`Incoming call from ${data.from}`);
@@ -106,7 +101,6 @@ const App = () => {
           setStream(userStream);
           streamRef.current = userStream;
 
-          // Ensure state is set before accepting the call
           setTimeout(() => acceptCall(data), 100);
         })
         .catch(err => {
@@ -118,76 +112,79 @@ const App = () => {
     }
   };
 
-
-
   const acceptCall = (data) => {
     const incomingPeer = new SimplePeer({
       initiator: false,
-      trickle: true, // Enable trickle ICE
+      trickle: true,
       stream: streamRef.current,
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478" } // Additional STUN
+          { urls: "stun:global.stun.twilio.com:3478" }
         ]
       },
     });
 
-    // Add ICE candidate handling
-    incomingPeer.on('iceCandidate', (candidate) => {
-      socketRef.current.send(JSON.stringify({
-        type: 'iceCandidate',
-        target: data.from,
-        candidate
-      }));
+    incomingPeer.on("signal", (signal) => {
+      socketRef.current.send(
+        JSON.stringify({ type: "acceptCall", signal, target: data.from })
+      );
     });
 
-    // Start a call
-    const startCall = () => {
-      // Existing code...
+    incomingPeer.on("stream", (remoteStream) => {
+      console.log("Receiving remote stream...");
+    });
 
-      const newPeer = new SimplePeer({
-        initiator: true,
-        trickle: true, // Enable trickle ICE
-        stream: streamRef.current,
-        config: {
-          iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            { urls: "stun:global.stun.twilio.com:3478" }
-          ]
-        },
-      });
+    peerRef.current = incomingPeer;
+  };
 
-      // Add ICE candidate handling
-      newPeer.on('iceCandidate', (candidate) => {
-        socketRef.current.send(JSON.stringify({
-          type: 'iceCandidate',
-          target: targetId,
-          candidate
-        }));
-      });
+  // Function to start a call
+  const startCall = () => {
+    if (!targetId) {
+      alert("Please enter a user ID to call.");
+      return;
+    }
 
-      // Handle ICE candidates from remote
-      newPeer.on('iceCandidate', (candidate) => {
-        if (candidate) {
-          newPeer.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-      });
-      return (
-        <div>
-          <h1>VoIP Web App (Audio Only)</h1>
-          <p>Your ID: {myId}</p>
-          <p>Status: {callStatus}</p>
-          <input
-            type="text"
-            placeholder="Enter user ID to call"
-            value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-          />
-          <button onClick={startCall}>Call</button>
-        </div>
+    const newPeer = new SimplePeer({
+      initiator: true,
+      trickle: true,
+      stream: streamRef.current,
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:global.stun.twilio.com:3478" }
+        ]
+      },
+    });
+
+    newPeer.on("signal", (signal) => {
+      socketRef.current.send(
+        JSON.stringify({ type: "callUser", signal, target: targetId })
       );
-    };
-  }
-}
-  export default App;
+    });
+
+    newPeer.on("stream", (remoteStream) => {
+      console.log("Receiving remote stream...");
+    });
+
+    peerRef.current = newPeer;
+    setCallStatus("Calling...");
+  };
+
+  return (
+    <div>
+      <h1>VoIP Web App (Audio Only)</h1>
+      <p>Your ID: {myId}</p>
+      <p>Status: {callStatus}</p>
+      <input
+        type="text"
+        placeholder="Enter user ID to call"
+        value={targetId}
+        onChange={(e) => setTargetId(e.target.value)}
+      />
+      <button onClick={startCall}>Call</button>
+    </div>
+  );
+};
+
+export default App;

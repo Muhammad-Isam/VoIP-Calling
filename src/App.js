@@ -22,8 +22,8 @@ const App = () => {
             channelCount: 1,
             sampleRate: 48000,
             sampleSize: 16,
-            latency: 0
-          }
+            latency: 0,
+          },
         });
         setStream(userStream);
         streamRef.current = userStream;
@@ -48,12 +48,17 @@ const App = () => {
     const userId = Math.random().toString(36).substr(2, 6);
     setMyId(userId);
 
-    const ws = new WebSocket(`wss://e752-108-181-186-240.ngrok-free.app`);
+    const ws = new WebSocket("wss://e752-108-181-186-240.ngrok-free.app");
     socketRef.current = ws;
 
     ws.onopen = () => {
       console.log("WebSocket connected");
-      ws.send(JSON.stringify({ type: "register", userId }));
+
+      if (userId) {
+        ws.send(JSON.stringify({ type: "register", userId }));
+      } else {
+        console.error("User ID is missing before registering");
+      }
     };
 
     ws.onmessage = (message) => {
@@ -64,19 +69,31 @@ const App = () => {
         case "registrationConfirmed":
           console.log("Registered as:", data.userId);
           break;
+
+        case "activeUsers":
+          console.log("Active users:", data.users);
+          break;
+
         case "incomingCall":
           setCallStatus(`Incoming call from ${data.from}`);
           handleIncomingCall(data);
           break;
+
         case "callAccepted":
           if (peerRef.current) {
             peerRef.current.signal(data.signal);
             setCallStatus("Call connected");
           }
           break;
+
         case "callFailed":
           setCallStatus(`Call failed: ${data.message}`);
           break;
+
+        case "error":
+          console.error(`WebSocket Error: ${data.message}`);
+          break;
+
         default:
           console.warn("Unknown message type:", data.type);
       }
@@ -120,20 +137,30 @@ const App = () => {
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478" }
-        ]
+          { urls: "stun:global.stun.twilio.com:3478" },
+          { urls: "turn:numb.viagenie.ca", credential: "webrtc", username: "webrtc@live.com" },
+        ],
       },
     });
 
     incomingPeer.on("signal", (signal) => {
-      socketRef.current.send(
-        JSON.stringify({ type: "acceptCall", signal, target: data.from })
-      );
+      if (socketRef.current) {
+        socketRef.current.send(
+          JSON.stringify({ type: "acceptCall", signal, target: data.from })
+        );
+      } else {
+        console.error("WebSocket not connected.");
+      }
     });
 
     incomingPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
     });
+
+    // WebRTC Debugging Logs
+    incomingPeer.on("connect", () => console.log("Peer connection established!"));
+    incomingPeer.on("error", (err) => console.error("Peer error:", err));
+    incomingPeer.on("close", () => console.log("Peer connection closed."));
 
     peerRef.current = incomingPeer;
   };
@@ -152,20 +179,30 @@ const App = () => {
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:global.stun.twilio.com:3478" }
-        ]
+          { urls: "stun:global.stun.twilio.com:3478" },
+          { urls: "turn:numb.viagenie.ca", credential: "webrtc", username: "webrtc@live.com" },
+        ],
       },
     });
 
     newPeer.on("signal", (signal) => {
-      socketRef.current.send(
-        JSON.stringify({ type: "callUser", signal, target: targetId })
-      );
+      if (socketRef.current) {
+        socketRef.current.send(
+          JSON.stringify({ type: "callUser", signal, target: targetId })
+        );
+      } else {
+        console.error("WebSocket not connected.");
+      }
     });
 
     newPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
     });
+
+    // WebRTC Debugging Logs
+    newPeer.on("connect", () => console.log("Peer connection established!"));
+    newPeer.on("error", (err) => console.error("Peer error:", err));
+    newPeer.on("close", () => console.log("Peer connection closed."));
 
     peerRef.current = newPeer;
     setCallStatus("Calling...");

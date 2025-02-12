@@ -29,7 +29,6 @@ const App = () => {
         streamRef.current = userStream;
       } catch (error) {
         console.error("Microphone access error:", error);
-
         if (error.name === "NotAllowedError") {
           alert("Microphone access is blocked. Please allow it in your browser settings.");
         } else if (error.name === "NotFoundError") {
@@ -39,7 +38,6 @@ const App = () => {
         }
       }
     };
-
     getMedia();
   }, []);
 
@@ -53,8 +51,8 @@ const App = () => {
 
     ws.onopen = () => {
       console.log("WebSocket connected");
-
       if (userId) {
+        // Include userId in registration message
         ws.send(JSON.stringify({ type: "register", userId }));
       } else {
         console.error("User ID is missing before registering");
@@ -117,7 +115,6 @@ const App = () => {
         .then(userStream => {
           setStream(userStream);
           streamRef.current = userStream;
-
           setTimeout(() => acceptCall(data), 100);
         })
         .catch(err => {
@@ -145,8 +142,9 @@ const App = () => {
 
     incomingPeer.on("signal", (signal) => {
       if (socketRef.current) {
+        // Send the answer message including userId
         socketRef.current.send(
-          JSON.stringify({ type: "acceptCall", signal, target: data.from })
+          JSON.stringify({ type: "answer", signal, target: data.from, userId: myId })
         );
       } else {
         console.error("WebSocket not connected.");
@@ -155,6 +153,7 @@ const App = () => {
 
     incomingPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
+      // You can attach remoteStream to an audio element if needed
     });
 
     // WebRTC Debugging Logs
@@ -187,8 +186,9 @@ const App = () => {
 
     newPeer.on("signal", (signal) => {
       if (socketRef.current) {
+        // Send callUser message including userId
         socketRef.current.send(
-          JSON.stringify({ type: "callUser", signal, target: targetId })
+          JSON.stringify({ type: "callUser", signal, target: targetId, userId: myId })
         );
       } else {
         console.error("WebSocket not connected.");
@@ -197,6 +197,7 @@ const App = () => {
 
     newPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
+      // Attach remoteStream to an audio element if needed
     });
 
     // WebRTC Debugging Logs

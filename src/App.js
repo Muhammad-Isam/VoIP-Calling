@@ -6,6 +6,7 @@ const App = () => {
   const [targetId, setTargetId] = useState("");
   const [stream, setStream] = useState(null);
   const [callStatus, setCallStatus] = useState("Disconnected");
+  const [incomingCallData, setIncomingCallData] = useState(null); // New state for incoming call data
   const socketRef = React.useRef(null);
   const peerRef = React.useRef(null);
   const streamRef = React.useRef();
@@ -74,7 +75,8 @@ const App = () => {
 
         case "incomingCall":
           setCallStatus(`Incoming call from ${data.from}`);
-          handleIncomingCall(data);
+          // Instead of immediately answering, store the call data:
+          setIncomingCallData(data);
           break;
 
         case "callAccepted":
@@ -107,26 +109,7 @@ const App = () => {
     };
   }, []);
 
-  // Handle incoming calls
-  const handleIncomingCall = (data) => {
-    if (!streamRef.current) {
-      console.error("No local stream available. Trying to re-acquire...");
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(userStream => {
-          setStream(userStream);
-          streamRef.current = userStream;
-          setTimeout(() => acceptCall(data), 100);
-        })
-        .catch(err => {
-          console.error("Failed to re-acquire microphone:", err);
-          alert("Microphone access required to answer calls.");
-        });
-    } else {
-      acceptCall(data);
-    }
-  };
-
-  // Accept an incoming call and send an "answer" message including our userId
+  // Function to accept an incoming call
   const acceptCall = (data) => {
     const incomingPeer = new SimplePeer({
       initiator: false,
@@ -166,9 +149,11 @@ const App = () => {
     incomingPeer.on("close", () => console.log("Peer connection closed."));
 
     peerRef.current = incomingPeer;
+    // Clear the stored incoming call data since we're now answering
+    setIncomingCallData(null);
   };
 
-  // Start a call: send a "call" message including our userId
+  // Function to start a call: send a "call" message including our userId
   const startCall = () => {
     if (!targetId) {
       alert("Please enter a user ID to call.");
@@ -228,6 +213,14 @@ const App = () => {
         onChange={(e) => setTargetId(e.target.value)}
       />
       <button onClick={startCall}>Call</button>
+      
+      {/* Render an Answer button if there's an incoming call */}
+      {incomingCallData && (
+        <div>
+          <p>{callStatus}</p>
+          <button onClick={() => acceptCall(incomingCallData)}>Answer Call</button>
+        </div>
+      )}
     </div>
   );
 };

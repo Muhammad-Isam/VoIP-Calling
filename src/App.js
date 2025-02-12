@@ -14,8 +14,18 @@ const App = () => {
   useEffect(() => {
     const getMedia = async () => {
       try {
-        const userStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        setStream(userStream);
+        // Update your getUserMedia call:
+        const userStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: 1,
+            sampleRate: 48000,
+            sampleSize: 16,
+            latency: 0
+          }
+        }); setStream(userStream);
         streamRef.current = userStream;
       } catch (error) {
         console.error("Microphone access error:", error);
@@ -95,7 +105,9 @@ const App = () => {
         .then(userStream => {
           setStream(userStream);
           streamRef.current = userStream;
-          acceptCall(data);
+
+          // Ensure state is set before accepting the call
+          setTimeout(() => acceptCall(data), 100);
         })
         .catch(err => {
           console.error("Failed to re-acquire microphone:", err);
@@ -106,84 +118,75 @@ const App = () => {
     }
   };
 
+
+
   const acceptCall = (data) => {
     const incomingPeer = new SimplePeer({
       initiator: false,
-      trickle: false,
+      trickle: true, // Enable trickle ICE
       stream: streamRef.current,
-      config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] },
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:global.stun.twilio.com:3478" } // Additional STUN
+        ]
+      },
     });
 
-    incomingPeer.signal(data.signal);
-
-    incomingPeer.on("signal", (signalData) => {
+    // Add ICE candidate handling
+    incomingPeer.on('iceCandidate', (candidate) => {
       socketRef.current.send(JSON.stringify({
-        type: "answer",
-        signal: signalData,
+        type: 'iceCandidate',
         target: data.from,
+        candidate
       }));
     });
 
-    incomingPeer.on("stream", (remoteStream) => {
-      const audio = new Audio();
-      audio.srcObject = remoteStream;
-      audio.play().catch((e) => console.error("Audio play failed:", e));
-      setCallStatus("Call connected");
-    });
+    // Start a call
+    const startCall = () => {
+      // Existing code...
 
-    peerRef.current = incomingPeer;
-  };
+      const newPeer = new SimplePeer({
+        initiator: true,
+        trickle: true, // Enable trickle ICE
+        stream: streamRef.current,
+        config: {
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:global.stun.twilio.com:3478" }
+          ]
+        },
+      });
 
-  // Start a call
-  const startCall = () => {
-    if (!streamRef.current) {
-      console.error("Microphone not accessible. Please allow permissions.");
-      alert("Microphone access is required to make calls.");
-      return;
-    }
+      // Add ICE candidate handling
+      newPeer.on('iceCandidate', (candidate) => {
+        socketRef.current.send(JSON.stringify({
+          type: 'iceCandidate',
+          target: targetId,
+          candidate
+        }));
+      });
 
-    setCallStatus("Calling...");
+      // Handle ICE candidates from remote
+      newPeer.on('iceCandidate', (candidate) => {
+        if (candidate) {
+          newPeer.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      });
+      return (
+        <div>
+          <h1>VoIP Web App (Audio Only)</h1>
+          <p>Your ID: {myId}</p>
+          <p>Status: {callStatus}</p>
+          <input
+            type="text"
+            placeholder="Enter user ID to call"
+            value={targetId}
+            onChange={(e) => setTargetId(e.target.value)}
+          />
+          <button onClick={startCall}>Call</button>
+        </div>
+      );
+    };
 
-    const newPeer = new SimplePeer({
-      initiator: true,
-      trickle: false,
-      stream: streamRef.current,
-      config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] },
-    });
-
-    newPeer.on("signal", (data) => {
-      socketRef.current.send(JSON.stringify({
-        type: "call",
-        signal: data,
-        target: targetId,
-        userId: myId,
-      }));
-    });
-
-    newPeer.on("stream", (remoteStream) => {
-      const audio = new Audio();
-      audio.srcObject = remoteStream;
-      audio.play().catch((e) => console.error("Audio play failed:", e));
-      setCallStatus("Call connected");
-    });
-
-    peerRef.current = newPeer;
-  };
-
-  return (
-    <div>
-      <h1>VoIP Web App (Audio Only)</h1>
-      <p>Your ID: {myId}</p>
-      <p>Status: {callStatus}</p>
-      <input
-        type="text"
-        placeholder="Enter user ID to call"
-        value={targetId}
-        onChange={(e) => setTargetId(e.target.value)}
-      />
-      <button onClick={startCall}>Call</button>
-    </div>
-  );
-};
-
-export default App;
+    export default App;

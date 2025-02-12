@@ -66,7 +66,16 @@ wss.on("connection", (ws) => {
                         }));
                     }
                     break;
-
+                // Add to message handler switch case:
+                case "iceCandidate":
+                    if (users[data.target]) {
+                        users[data.target].send(JSON.stringify({
+                            type: "iceCandidate",
+                            candidate: data.candidate,
+                            from: data.userId
+                        }));
+                    }
+                    break;
                 case "heartbeat":
                     ws.isAlive = true;
                     break;

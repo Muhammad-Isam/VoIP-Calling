@@ -6,10 +6,20 @@ const App = () => {
   const [targetId, setTargetId] = useState("");
   const [stream, setStream] = useState(null);
   const [callStatus, setCallStatus] = useState("Disconnected");
-  const [incomingCallData, setIncomingCallData] = useState(null); // New state for incoming call data
+  const [incomingCallData, setIncomingCallData] = useState(null); // State for incoming call data
   const socketRef = React.useRef(null);
   const peerRef = React.useRef(null);
   const streamRef = React.useRef();
+
+  // Function to attach a remote stream to an audio element and play it
+  const playRemoteStream = (remoteStream) => {
+    const audioElement = document.createElement("audio");
+    audioElement.srcObject = remoteStream;
+    audioElement.autoplay = true;
+    // Optionally add controls so you can test audio playback
+    audioElement.controls = true;
+    document.body.appendChild(audioElement);
+  };
 
   // Request microphone access on mount
   useEffect(() => {
@@ -140,7 +150,8 @@ const App = () => {
 
     incomingPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
-      // Here you can attach the remoteStream to an audio element if needed
+      // Attach remote stream to an audio element for playback
+      playRemoteStream(remoteStream);
     });
 
     // WebRTC Debugging Logs
@@ -189,7 +200,8 @@ const App = () => {
 
     newPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
-      // Here you can attach the remoteStream to an audio element if needed
+      // Attach remote stream to an audio element for playback
+      playRemoteStream(remoteStream);
     });
 
     // WebRTC Debugging Logs

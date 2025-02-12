@@ -40,7 +40,7 @@ const App = () => {
 
     // Use 'wss://' for secure WebSockets in production
     // const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`wss://localhost:5000`);
+    const ws = new WebSocket(`wss://e752-108-181-186-240.ngrok-free.app`);
     socketRef.current = ws;
 
     ws.onopen = () => {

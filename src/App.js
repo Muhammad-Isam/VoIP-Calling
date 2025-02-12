@@ -96,6 +96,14 @@ const App = () => {
           }
           break;
 
+        case "iceCandidate":
+          // Handle incoming ICE candidates from the remote peer
+          if (peerRef.current) {
+            console.log("Received ICE candidate:", data.candidate);
+            peerRef.current.signal(data.candidate);
+          }
+          break;
+
         case "callFailed":
           setCallStatus(`Call failed: ${data.message}`);
           break;
@@ -134,15 +142,20 @@ const App = () => {
       },
     });
 
+    // Process the initial signal from the caller
+    incomingPeer.signal(data.signal);
+
     incomingPeer.on("signal", (signal) => {
       if (socketRef.current) {
         // Send an "answer" message with our userId to the caller
-        socketRef.current.send(JSON.stringify({
-          type: "answer",
-          signal,
-          target: data.from,
-          userId: myId,
-        }));
+        socketRef.current.send(
+          JSON.stringify({
+            type: "answer",
+            signal,
+            target: data.from,
+            userId: myId,
+          })
+        );
       } else {
         console.error("WebSocket not connected.");
       }
@@ -150,7 +163,6 @@ const App = () => {
 
     incomingPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
-      // Attach remote stream to an audio element for playback
       playRemoteStream(remoteStream);
     });
 
@@ -187,12 +199,14 @@ const App = () => {
     newPeer.on("signal", (signal) => {
       if (socketRef.current) {
         // Send a "call" message with our userId
-        socketRef.current.send(JSON.stringify({
-          type: "call",
-          signal,
-          target: targetId,
-          userId: myId,
-        }));
+        socketRef.current.send(
+          JSON.stringify({
+            type: "call",
+            signal,
+            target: targetId,
+            userId: myId,
+          })
+        );
       } else {
         console.error("WebSocket not connected.");
       }
@@ -200,7 +214,6 @@ const App = () => {
 
     newPeer.on("stream", (remoteStream) => {
       console.log("Receiving remote stream...");
-      // Attach remote stream to an audio element for playback
       playRemoteStream(remoteStream);
     });
 

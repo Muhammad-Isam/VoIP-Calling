@@ -58,7 +58,7 @@ const App = () => {
     const userId = Math.random().toString(36).substr(2, 6);
     setMyId(userId);
 
-    const ws = new WebSocket("wss://e752-108-181-186-240.ngrok-free.app");
+    const ws = new WebSocket("wss://edc2-2407-aa80-15-83d3-9814-e2f3-14f3-1a76.ngrok-free.app");
     socketRef.current = ws;
 
     ws.onopen = () => {
